@@ -152,3 +152,31 @@ The exact steps vary device-to-device, but here is a generalised guide:
 5. Locate the certificate file `ca.pem` on your SD Card/Internal Storage using the file manager.
 6. Select to load it.
 7. Done!
+
+
+## Using Certificates in Proxmox
+
+### Combine Certificates
+
+Concatenate the certificate and CA certificate into a single file:
+
+```bash
+cat cert.pem > fullchain.pem
+cat ca.pem >> fullchain.pem
+```
+
+### Upload to Proxmox
+
+1. Copy the output of the following command into the Proxmox top field:
+
+    ```bash
+    cat cert-key.pem
+    ```
+
+2. Copy the output of the following command into the Proxmox bottom field:
+
+    ```bash
+    cat fullchain.pem
+    ```
+
+This will ensure that Proxmox uses the correct certificate and key for SSL/TLS.
