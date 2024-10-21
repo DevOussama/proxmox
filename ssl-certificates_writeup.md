@@ -180,3 +180,6 @@ cat ca.pem >> fullchain.pem
     ```
 
 This will ensure that Proxmox uses the correct certificate and key for SSL/TLS.
+
+
+For a detailed video tutorial on setting up SSL certificates, refer to [this YouTube video](https://www.youtube.com/watch?v=VH4gXcvkmOY).
