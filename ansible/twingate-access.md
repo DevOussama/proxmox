@@ -1,0 +1,1 @@
+kubectl --kubeconfig=/home/oussama/.kube/microk8s-config get nodes

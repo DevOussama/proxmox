@@ -1,0 +1,95 @@
+- name: Setup New Workers
+  hosts: new_workers
+  become: yes
+  serial: 1  # Process one worker at a time to avoid token conflicts
+  vars:
+    ansible_timeout: 30
+  pre_tasks:
+    - name: Check if node is already part of cluster
+      command: microk8s status
+      register: cluster_status
+      changed_when: false
+      ignore_errors: yes
+      timeout: 30
+      failed_when: false
+
+    - name: Set cluster_status.rc to 1 on timeout
+      set_fact:
+        cluster_status_rc: "{{ cluster_status.rc | default(1) }}"
+
+    - name: Remove existing MicroK8s installation if not already in cluster
+      snap:
+        name: microk8s
+        state: absent
+      when: 
+        - cluster_status_rc != 0 or
+          'is not running' in cluster_status.stdout
+      ignore_errors: yes
+
+    - name: Install MicroK8s if not already in cluster
+      snap:
+        name: microk8s
+        channel: "{{ microk8s_channel }}"
+        classic: yes
+        state: present
+      when: 
+        - cluster_status_rc != 0 or
+          'is not running' in cluster_status.stdout
+
+    - name: Add ubuntu user to microk8s group
+      user:
+        name: ubuntu
+        groups: microk8s
+        append: yes
+
+    - name: Wait for MicroK8s to be ready
+      command: microk8s status --wait-ready
+      changed_when: false
+      retries: 10
+      delay: 10
+      register: result
+      until: result.rc == 0
+
+    - name: Check if node is already joined
+      command: microk8s kubectl get nodes
+      register: node_check
+      changed_when: false
+      ignore_errors: yes
+      retries: 10
+      delay: 5
+      until: node_check.rc == 0
+
+  tasks:
+    - name: Generate fresh join token on master
+      command: microk8s add-node --format short
+      register: join_command
+      changed_when: false
+      delegate_to: "{{ groups['master'][0] }}"
+      when: 
+        - node_check.rc != 0 or
+          inventory_hostname not in node_check.stdout
+
+    - name: Join worker to cluster
+      command: "{{ join_command.stdout_lines[0] }}"
+      register: join_result
+      when: 
+        - node_check.rc != 0 or
+          inventory_hostname not in node_check.stdout
+        - join_command.stdout is defined
+      failed_when: 
+        - join_result.rc != 0 
+        - "'already joined' not in join_result.stderr"
+        - "'already known to dqlite' not in join_result.stdout"
+      changed_when: join_result.rc == 0
+      retries: 3
+      delay: 5
+      until: join_result.rc == 0 or 'already joined' in join_result.stderr or 'already known to dqlite' in join_result.stdout
+
+    - name: Wait for node to be ready
+      command: microk8s kubectl get nodes
+      register: node_status
+      until: node_status.rc == 0
+      retries: 10
+      delay: 10
+      changed_when: false
+      when: join_result.changed

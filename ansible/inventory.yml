@@ -1,0 +1,31 @@
+all:
+  children:
+    microk8s_cluster:
+      children:
+        master:
+          hosts:
+            master-node:
+              ansible_host: 192.168.0.204 # Master node IP on local network (192.168.0.0/24)
+         # New worker nodes to be added to the cluster
+        new_workers:
+          hosts:
+            worker1:
+              ansible_host: 192.168.0.205 # Worker node 1 IP on local network
+
+        #     worker2:
+        #       ansible_host: 192.168.0.202  # Commented worker node 2 (not currently active)
+        remove_workers:
+          hosts:
+            # worker1:
+            #   ansible_host: 192.168.0.205
+            # worker2:
+            #   ansible_host: 192.168.0.202
+  vars:
+    ansible_user: ubuntu                    # SSH user for connecting to nodes
+    ansible_ssh_private_key_file: ~/.ssh/proxmox-server  # SSH key for authentication
+    ansible_become: yes                     # Enable privilege escalation
+    ansible_become_method: sudo             # Use sudo for privilege escalation
+    ansible_become_user: root               # Escalate privileges to root user
+    microk8s_channel: "1.31/stable"        # MicroK8s version to install
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'  # Skip SSH host key checking
+    ansible_timeout: 30                     # Connection timeout in seconds

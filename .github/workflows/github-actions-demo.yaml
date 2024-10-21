@@ -1,0 +1,81 @@
+name: Twingate on GitHub Actions Demo
+on: [push]
+jobs:
+  Twingate-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Twingate
+        run: |
+          echo "deb [trusted=yes] https://packages.twingate.com/apt/ /" | sudo tee /etc/apt/sources.list.d/twingate.list
+          sudo apt update -yq
+          sudo apt install -yq twingate
+
+      - name: Setup and start Twingate
+        env:
+          TWINGATE_SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
+        run: |
+          echo $TWINGATE_SERVICE_KEY | sudo twingate setup --headless=-
+          sudo twingate start
+
+      - name: (optional) Twingate status
+        run: twingate status
+
+      - name: (optional) Twingate logs
+        run: journalctl -u twingate
+
+      - name: install kubectl
+        run: sudo snap install kubectl --classic
+        
+      - name: Create .kube directory
+        run: mkdir -p /home/runner/work/proxmox/proxmox/.kube
+
+      - name: Create kubeconfig
+        run: |
+          cat << EOF > /home/runner/work/proxmox/proxmox/.kube/microk8s-config
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: microk8s-cluster
+            cluster:
+              server: https://192.168.0.200:16443
+              insecure-skip-tls-verify: true
+          users:
+          - name: admin
+            user:
+              token: ${{ secrets.K8S_MASTER_NODE_TOKEN }}
+          contexts:
+          - name: microk8s
+            context:
+              cluster: microk8s-cluster
+              user: admin
+          current-context: microk8s
+          EOF
+     
+      - name: Get nodes
+        run: kubectl --kubeconfig=/home/runner/work/proxmox/proxmox/.kube/microk8s-config get nodes
+
+      - name: Get pods
+        run: kubectl --kubeconfig=/home/runner/work/proxmox/proxmox/.kube/microk8s-config get pods -n first-k8s-app
+
+      - name: Check if service is running
+        run: kubectl --kubeconfig=/home/runner/work/proxmox/proxmox/.kube/microk8s-config get svc -n first-k8s-app
+      
+      - name: Check if ingress is running
+        run: kubectl --kubeconfig=/home/runner/work/proxmox/proxmox/.kube/microk8s-config get ingress -n first-k8s-app
+
+      - name: Check if I can access the master node
+        run: curl http://192.168.0.200/second
+
+      
+
+      - name: Access a public resource
+        env:
+         TEST_URL: https://www.twingate.com/
+        run: |
+            echo Calling $TEST_URL 🚀
+            curl -v $TEST_URL
+
+      - run: echo "SUCCESS!!! 🤩 This job's status is ${{ job.status }}."
+
+      - name: Stop Twingate
+        run: sudo twingate stop

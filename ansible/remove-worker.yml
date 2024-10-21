@@ -1,0 +1,36 @@
+- name: Remove Worker Node from Cluster
+  hosts: remove_workers
+  become: yes
+  serial: 1  # Process one worker at a time
+  tasks:
+    - name: Get node name
+      command: hostname
+      register: node_name
+      changed_when: false
+
+    - name: Remove node from cluster
+      command: "microk8s leave"
+      register: leave_result
+      failed_when:
+        - leave_result.rc != 0
+        - leave_result.stderr is defined and "'not part of a cluster' not in leave_result.stderr"
+      changed_when: leave_result.rc == 0
+
+    - name: Remove MicroK8s installation
+      snap:
+        name: microk8s
+        state: absent
+      ignore_errors: yes
+
+- name: Clean up removed node from master
+  hosts: master
+  become: yes
+  tasks:
+    - name: Remove node from cluster
+      command: "microk8s kubectl delete node {{ hostvars[item]['node_name'].stdout }}"
+      with_items: "{{ groups['remove_workers'] }}"
+      ignore_errors: yes
+      register: delete_result
+      until: delete_result is success or 'NotFound' in delete_result.stderr
+      retries: 3
+      delay: 5

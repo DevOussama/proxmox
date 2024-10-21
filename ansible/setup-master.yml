@@ -1,0 +1,98 @@
+- name: Setup MicroK8s Master Node
+  hosts: master
+  become: yes
+  tasks:
+    - name: Remove existing MicroK8s installation
+      snap:
+        name: microk8s
+        state: absent
+      ignore_errors: yes
+
+    - name: Install MicroK8s
+      snap:
+        name: microk8s
+        channel: "{{ microk8s_channel }}"
+        classic: yes
+        state: present
+
+    - name: Add ubuntu user to microk8s group
+      user:
+        name: ubuntu
+        groups: microk8s
+        append: yes
+
+    - name: Create .kube directory
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Wait for MicroK8s to be ready
+      command: microk8s status --wait-ready
+      changed_when: false
+      retries: 10
+      delay: 10
+      register: result
+      until: result.rc == 0
+
+    - name: Enable MicroK8s addons
+      command: microk8s enable dns dashboard
+      register: addon_result
+      changed_when: addon_result.rc == 0
+
+    - name: Generate kubeconfig
+      command: microk8s config
+      register: kubeconfig
+      changed_when: false
+
+    - name: Save kubeconfig
+      copy:
+        content: "{{ kubeconfig.stdout }}"
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Get join command
+      command: microk8s add-node --format short
+      register: join_command
+      changed_when: false
+
+    - name: Save join command to a file
+      copy:
+        content: "{{ join_command.stdout_lines[0] }}"
+        dest: "/home/ubuntu/join-command.txt"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Update CSR configuration with master private IP
+      lineinfile:
+        path: /var/snap/microk8s/current/certs/csr.conf.template
+        regexp: '^CN = '
+        line: 'CN = {{ hostvars[groups["master"][0]].ansible_host }}'
+        state: present
+
+    - name: Wait for snap changes to complete
+      command: sudo snap changes
+      register: snap_changes
+      until: snap_changes.stdout.find('Doing') == -1
+      retries: 10
+      delay: 10
+
+    - name: Refresh MicroK8s certificates
+      command: sudo microk8s refresh-certs --cert server.crt
+      register: refresh_certs_result
+      until: refresh_certs_result.rc == 0
+      retries: 5
+      delay: 15
+      changed_when: false
+
+    - name: Enable MicroK8s Ingress
+      command: microk8s enable ingress
+      register: ingress_result
+      changed_when: ingress_result.rc == 0
+
+

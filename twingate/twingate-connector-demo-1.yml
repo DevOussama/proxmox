@@ -1,0 +1,11 @@
+apiVersion: twingate.com/v1beta
+kind: TwingateConnector
+metadata:
+  name: twingate-connector-demo-1
+  namespace: twingate
+spec:
+  imagePolicy:
+    schedule: "0 0 * * *"
+    provider: "dockerhub"
+  name: twingate-connector-demo-01
+  hasStatusNotificationsEnabled: true
