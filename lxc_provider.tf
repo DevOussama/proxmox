@@ -14,7 +14,7 @@ provider "proxmox" {
     pm_otp = ""
 }
 
-resource "proxmox_lxc" "lxc-test" {
+resource "proxmox_lxc" "node1VM1" {
     features {
         nesting = true
     }
@@ -32,3 +32,20 @@ resource "proxmox_lxc" "lxc-test" {
     unprivileged = true
 }
 
+resource "proxmox_lxc" "node2VM1" {
+    features {
+        nesting = true
+    }
+    hostname = "terraform-new-container"
+    network {
+        name = "eth0"
+        bridge = "vmbr0"
+        ip = "dhcp"
+        ip6 = "dhcp"
+    }
+    ostemplate = "local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.gz"
+    password = "password"
+    # pool = "OussamaCluster"
+    target_node = "node2"
+    unprivileged = true
+}
