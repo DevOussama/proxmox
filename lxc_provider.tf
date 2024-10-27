@@ -37,6 +37,8 @@ resource "proxmox_virtual_environment_file" "cloud_config" {
         ssh-authorized-keys:
           - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
         sudo: ALL=(ALL) NOPASSWD:ALL
+    runcmd:
+      - echo "Hello, World!" > /tmp/hello.txt    
     EOF
 
     file_name = "example.cloud-config.yaml"
