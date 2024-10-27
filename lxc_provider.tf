@@ -1,93 +1,153 @@
 terraform {
-  required_version = ">= 1.1.0"
   required_providers {
     proxmox = {
-      source  = "thegameprofi/proxmox"
-      version = ">= 2.9.5"
+      source = "bpg/proxmox"
+      version = "0.66.3"
     }
   }
 }
 
 provider "proxmox" {
-    pm_tls_insecure = true
-    pm_api_url = "https://192.168.0.102:8006/api2/json"
-    pm_password = "Ets240790"
-    pm_user = "root@pam"
-    pm_otp = ""
+  endpoint = "https://192.168.0.102:8006/api2/json"
+
+  username = "root@pam"
+  password = "Ets240790"
+}
+
+resource "proxmox_virtual_environment_file" "cloud_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "node2"
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    chpasswd:
+      list: |
+        ubuntu:example
+      expire: false
+    hostname: example-hostname
+    packages:
+      - qemu-guest-agent
+    users:
+      - default
+      - name: ubuntu
+        groups: sudo
+        shell: /bin/bash
+        ssh-authorized-keys:
+          - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+    EOF
+
+    file_name = "example.cloud-config.yaml"
+  }
+}
+
+
+resource "proxmox_virtual_environment_vm" "ubuntu_vm" {
+  name        = "terraform-provider-proxmox-ubuntu-vm"
+  description = "Managed by Terraform"
+  tags        = ["terraform", "ubuntu"]
+
+  node_name = "node2"
+  vm_id     = 4321
+  agent {
+    # read 'Qemu guest agent' section, change to true only when ready
+    enabled = false
+  }
+  # if agent is not enabled, the VM may not be able to shutdown properly, and may need to be forced off
+  stop_on_destroy = true
+
+  startup {
+    order      = "3"
+    up_delay   = "60"
+    down_delay = "60"
+  }
+
+  cpu {
+    cores        = 2
+    type         = "x86-64-v2-AES"  # recommended for modern CPUs
+  }
+
+  memory {
+    dedicated = 2048
+    floating  = 2048 # set equal to dedicated to enable ballooning
+  }
+
+  disk {
+    datastore_id = "local-lvm"
+    file_id      = proxmox_virtual_environment_download_file.latest_ubuntu_22_jammy_qcow2_img.id
+    interface    = "scsi0"
+  }
+
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
+    }
+
+    user_account {
+      keys     = [trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)]
+    #   password = random_password.ubuntu_vm_password.result
+      password = "TT123456!"
+      username = "ubuntu"
+    }
+
+    user_data_file_id = proxmox_virtual_environment_file.cloud_config.id
+  }
+
+  network_device {
+    bridge = "vmbr0"
+  }
+
+  operating_system {
+    type = "l26"
+  }
+
+#   tpm_state {
+#     version = "v2.0"
+#   }
+
+  serial_device {}
+}
+
+resource "proxmox_virtual_environment_download_file" "latest_ubuntu_22_jammy_qcow2_img" {
+  content_type = "iso"
+  datastore_id = "local"
+  node_name    = "node2"
+  url          = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 }
 
 
 
-resource "proxmox_vm_qemu" "pxe-example" {
-    name                      = "pxe-example"
-    desc                      = "A test VM for PXE boot mode."
-# PXE option enables the network boot feature
-    pxe                       = true
-# unless your PXE installed system includes the Agent in the installed
-# OS, do not use this, especially for PXE boot VMs
-    agent                     = 0
-    automatic_reboot          = true
-    balloon                   = 0
-    bios                      = "seabios"
-# boot order MUST include network, this is enforced in the Provider
-# Optinally, setting a disk first means that PXE will be used first boot
-    iso                       = "iso:ubuntu-22.04.5-live-server-amd64.iso"
-# and future boots will run off the disk
-    boot                      = "order=net0;scsi0"
-    cores                     = 2
-    cpu                       = "host"
-    define_connection_info    = true
-    force_create              = false
-    hotplug                   = "network,disk,usb"
-    kvm                       = true
-    memory                    = 2048
-    numa                      = false
-    onboot                    = false
-    vm_state                  = "running"
-    # os_type                   = "Linux 5.x - 2.6 Kernel"
-    qemu_os                   = "l26"
-    scsihw                    = "virtio-scsi-pci"
-    sockets                   = 1
-    tablet                    = true
-    target_node               = "node2"
-    vcpus                     = 0
+# save password and private key to a file
+resource "local_file" "ubuntu_vm_password_file" {
+    content  = random_password.ubuntu_vm_password.result
+    filename = "${path.module}/ubuntu_vm_password.txt"
+}
 
-    disks {
-        scsi {
-            scsi0 {
-                disk {
-                    backup             = true
-                    cache              = "none"
-                    discard            = true
-                    emulatessd         = true
-                    iothread           = true
-                    mbps_r_burst       = 0.0
-                    mbps_r_concurrent  = 0.0
-                    mbps_wr_burst      = 0.0
-                    mbps_wr_concurrent = 0.0
-                    replicate          = true
-                    size               = 32
-                    storage            = "local-lvm"
-                }
-            }
-        }
-    }
+resource "random_password" "ubuntu_vm_password" {
+  length           = 16
+  override_special = "_%@"
+  special          = true
+}
 
-    network {
-        bridge    = "vmbr0"
-        firewall  = false
-        link_down = false
-        model     = "virtio"
-        macaddr = "52:54:00:00:00:01"
-    }
+resource "tls_private_key" "ubuntu_vm_key" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
 
-    smbios {
-        family       = "VM"
-        manufacturer = "Hashibrown"
-        product      = "Terraform"
-        sku          = "dQw4w9WgXcQ"
-        uuid         = "5b710d2f-4ea2-4d49-9eaa-c18392fd734d"
-        version      = "v1.0"
-        serial       = "ABC123"
-    }
+output "ubuntu_vm_password" {
+  value     = random_password.ubuntu_vm_password.result
+  sensitive = true
+}
+
+output "ubuntu_vm_private_key" {
+  value     = tls_private_key.ubuntu_vm_key.private_key_pem
+  sensitive = true
+}
+
+output "ubuntu_vm_public_key" {
+  value = tls_private_key.ubuntu_vm_key.public_key_openssh
 }
