@@ -1,0 +1,23 @@
+#cloud-config
+hostname: my-server
+manage_etc_hosts: true
+
+users:
+  - name: myuser
+    ssh-authorized-keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAr... your-public-key
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: sudo
+    shell: /bin/bash
+
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - curl
+  - vim
+
+runcmd:
+  - echo "Hello, world!" > /etc/motd
+
+final_message: "The system is finally up, after $UPTIME seconds"
