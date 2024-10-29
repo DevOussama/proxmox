@@ -84,8 +84,8 @@ resource "proxmox_virtual_environment_vm" "master_node" {
   initialization {
     ip_config {
       ipv4 {
-        address = "192.168.1.100/24"
-        gateway = "192.168.1.1"
+        address = "192.168.0.200/24"  # Static IP outside DHCP range
+        gateway = "192.168.0.1"       # Your router IP
       }
     }
 
@@ -100,6 +100,7 @@ resource "proxmox_virtual_environment_vm" "master_node" {
 
   network_device {
     bridge = "vmbr0"
+    model  = "virtio"
   }
 
   operating_system {
@@ -138,7 +139,7 @@ resource "proxmox_virtual_environment_file" "cloud_config_worker" {
       - echo "Hello, World!" > /tmp/hello.txt  
       - sudo snap install microk8s --classic --channel=1.31
       - sudo microk8s status --wait-ready
-      - JOIN_COMMAND=$(ssh ubuntu@192.168.1.100 'sudo microk8s add-node' | grep 'microk8s join')
+      - JOIN_COMMAND=$(ssh ubuntu@192.168.0.200 'sudo microk8s add-node' | grep 'microk8s join')
       - sudo $JOIN_COMMAND
       - sudo microk8s kubectl get nodes
      
@@ -185,7 +186,8 @@ resource "proxmox_virtual_environment_vm" "worker_node" {
   initialization {
     ip_config {
       ipv4 {
-        address = "dhcp"
+        address = "192.168.0.201/24"  # Static IP outside DHCP range
+        gateway = "192.168.0.1"       # Your router IP
       }
     }
 
@@ -200,6 +202,7 @@ resource "proxmox_virtual_environment_vm" "worker_node" {
 
   network_device {
     bridge = "vmbr0"
+    model  = "virtio"
   }
 
   operating_system {
@@ -238,7 +241,7 @@ resource "proxmox_virtual_environment_file" "cloud_config_worker_2" {
       - echo "Hello, World!" > /tmp/hello.txt  
       - sudo snap install microk8s --classic --channel=1.31
       - sudo microk8s status --wait-ready
-      - JOIN_COMMAND=$(ssh ubuntu@192.168.1.100 'sudo microk8s add-node' | grep 'microk8s join')
+      - JOIN_COMMAND=$(ssh ubuntu@192.168.0.200 'sudo microk8s add-node' | grep 'microk8s join')
       - sudo $JOIN_COMMAND
       - sudo microk8s kubectl get nodes
     EOF
@@ -284,7 +287,8 @@ resource "proxmox_virtual_environment_vm" "worker_node_2" {
   initialization {
     ip_config {
       ipv4 {
-        address = "dhcp"
+        address = "192.168.0.202/24"  # Static IP outside DHCP range
+        gateway = "192.168.0.1"       # Your router IP
       }
     }
 
@@ -299,6 +303,7 @@ resource "proxmox_virtual_environment_vm" "worker_node_2" {
 
   network_device {
     bridge = "vmbr0"
+    model  = "virtio"
   }
 
   operating_system {
