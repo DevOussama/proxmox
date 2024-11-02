@@ -13,40 +13,130 @@ provider "proxmox" {
   password = "Ets240790"
 }
 
-resource "proxmox_virtual_environment_file" "cloud_config" {
-  content_type = "snippets"
-  datastore_id = "local"
-  node_name    = "node2"
+# Master node cloud-init configuration
+# resource "proxmox_virtual_environment_file" "cloud_config" {
+#   content_type = "snippets"
+#   datastore_id = "local"
+#   node_name    = "node2"
 
-  source_raw {
-    data = <<-EOF
-    #cloud-config
-    chpasswd:
-      list: |
-        ubuntu:password
-      expire: false
-    hostname: master_node
-    packages:
-      - qemu-guest-agent
-    users:
-      - default
-      - name: ubuntu
-        groups: sudo
-        shell: /bin/bash
-        ssh-authorized-keys:
-          - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
-        sudo: ALL=(ALL) NOPASSWD:ALL
-    runcmd:
-      - echo "Hello, World!" > /tmp/hello.txt  
-      - sudo snap install microk8s --classic --channel=1.31
-      - sudo microk8s status --wait-ready
-      - sudo microk8s enable dns dashboard
-    EOF
+#   source_raw {
+#     data = <<-EOF
+#     #cloud-config
+#     chpasswd:
+#       list: |
+#         ubuntu:password
+#       expire: false
+#     hostname: master_node
+#     packages:
+#       - qemu-guest-agent
+#       - openssh-server
+#     users:
+#       - default
+#       - name: ubuntu
+#         groups: sudo
+#         shell: /bin/bash
+#         ssh-authorized-keys:
+#           - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
+#         sudo: ALL=(ALL) NOPASSWD:ALL
+#     write_files:
+#       - path: /etc/netplan/00-installer-config.yaml
+#         content: |
+#           network:
+#             version: 2
+#             ethernets:
+#               eth0:
+#                 addresses:
+#                   - 192.168.0.200/24
+#                 gateway4: 192.168.0.1
+#                 nameservers:
+#                   addresses: [192.168.0.1]
+#     runcmd:
+#       - netplan apply
+#       - systemctl enable qemu-guest-agent
+#       - systemctl start qemu-guest-agent
+#       - echo "master-node" > /etc/hostname
+#       - hostnamectl set-hostname master-node
+#       - sudo snap install microk8s --classic --channel=1.31
+#       - sudo usermod -a -G microk8s ubuntu
+#       - sudo chown -R ubuntu ~/.kube
+#       - sudo microk8s status --wait-ready
+#       - sudo microk8s enable dns dashboard
+#       - sudo microk8s config > /home/ubuntu/.kube/config
+#       - sudo chown ubuntu:ubuntu /home/ubuntu/.kube/config
+#       - echo "Master node setup completed" > /home/ubuntu/master-setup-complete
+#     EOF
 
-    file_name = "cloud-config-master.yaml"
-  }
-}
+#     file_name = "cloud-config-master.yaml"
+#   }
+# }
 
+# # Worker node cloud-init configuration
+# resource "proxmox_virtual_environment_file" "cloud_config_worker" {
+#   content_type = "snippets"
+#   datastore_id = "local"
+#   node_name    = "node2"
+
+#   source_raw {
+#     data = <<-EOF
+#     #cloud-config
+#     chpasswd:
+#       list: |
+#         ubuntu:password
+#       expire: false
+#     hostname: worker_node_1
+#     packages:
+#       - qemu-guest-agent
+#       - openssh-server
+#     users:
+#       - default
+#       - name: ubuntu
+#         groups: sudo
+#         shell: /bin/bash
+#         ssh-authorized-keys:
+#           - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
+#         sudo: ALL=(ALL) NOPASSWD:ALL
+#     write_files:
+#       - path: /etc/netplan/00-installer-config.yaml
+#         content: |
+#           network:
+#             version: 2
+#             ethernets:
+#               eth0:
+#                 addresses:
+#                   - 192.168.0.201/24
+#                 gateway4: 192.168.0.1
+#                 nameservers:
+#                   addresses: [192.168.0.1]
+#       - path: /home/ubuntu/join-cluster.sh
+#         permissions: '0755'
+#         content: |
+#           #!/bin/bash
+#           # Wait for master node to be ready
+#           while ! ssh -o StrictHostKeyChecking=no ubuntu@192.168.0.200 "test -f /home/ubuntu/master-setup-complete"; do
+#             echo "Waiting for master node to complete setup..."
+#             sleep 30
+#           done
+#           # Get join command from master node
+#           JOIN_COMMAND=$(ssh -o StrictHostKeyChecking=no ubuntu@192.168.0.200 'sudo microk8s add-node --token-ttl 0' | grep 'microk8s join' | head -n1)
+#           # Execute join command
+#           sudo $JOIN_COMMAND
+#     runcmd:
+#       - netplan apply
+#       - systemctl enable qemu-guest-agent
+#       - systemctl start qemu-guest-agent
+#       - echo "worker-node-1" > /etc/hostname
+#       - hostnamectl set-hostname worker-node-1
+#       - sudo snap install microk8s --classic --channel=1.31
+#       - sudo usermod -a -G microk8s ubuntu
+#       - sudo microk8s status --wait-ready
+#       - su - ubuntu -c "/home/ubuntu/join-cluster.sh"
+#     EOF
+
+#     file_name = "cloud-config-worker.yaml"
+#   }
+# }
+
+# Master node VM configuration
 resource "proxmox_virtual_environment_vm" "master_node" {
   name        = "microk8s-master-node"
   description = "MicroK8s Master Node"
@@ -54,13 +144,13 @@ resource "proxmox_virtual_environment_vm" "master_node" {
 
   node_name = "node2"
   vm_id     = 4320
+  
   agent {
-    enabled = false
+    enabled = true
   }
-  stop_on_destroy = true
-
+  
   startup {
-    order      = "3"
+    order      = "1"  # Start first
     up_delay   = "60"
     down_delay = "60"
   }
@@ -79,23 +169,7 @@ resource "proxmox_virtual_environment_vm" "master_node" {
     datastore_id = "local-lvm"
     file_id      = proxmox_virtual_environment_download_file.latest_ubuntu_22_jammy_qcow2_img.id
     interface    = "scsi0"
-  }
-
-  initialization {
-    ip_config {
-      ipv4 {
-        address = "192.168.0.200/24"  # Static IP outside DHCP range
-        gateway = "192.168.0.1"       # Your router IP
-      }
-    }
-
-    user_account {
-      keys     = [trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)]
-      password = "TT123456!"
-      username = "ubuntu"
-    }
-
-    user_data_file_id = proxmox_virtual_environment_file.cloud_config.id
+    size         = 32
   }
 
   network_device {
@@ -107,62 +181,39 @@ resource "proxmox_virtual_environment_vm" "master_node" {
     type = "l26"
   }
 
-  serial_device {}
-
-
-}
-
-resource "proxmox_virtual_environment_file" "cloud_config_worker" {
-  content_type = "snippets"
-  datastore_id = "local"
-  node_name    = "node2"
-
-  source_raw {
-    data = <<-EOF
-    #cloud-config
-    chpasswd:
-      list: |
-        ubuntu:password
-      expire: false
-    hostname: worker_node
-    packages:
-      - qemu-guest-agent
-    users:
-      - default
-      - name: ubuntu
-        groups: sudo
-        shell: /bin/bash
-        ssh-authorized-keys:
-          - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
-        sudo: ALL=(ALL) NOPASSWD:ALL
-    runcmd:
-      - echo "Hello, World!" > /tmp/hello.txt  
-      - sudo snap install microk8s --classic --channel=1.31
-      - sudo microk8s status --wait-ready
-      - JOIN_COMMAND=$(ssh ubuntu@192.168.0.200 'sudo microk8s add-node' | grep 'microk8s join')
-      - sudo $JOIN_COMMAND
-      - sudo microk8s kubectl get nodes
-     
-    EOF
-
-    file_name = "cloud-config-worker.yaml"
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "192.168.0.200/24"
+        gateway = "192.168.0.1"
+      }
+    }
+    user_account {
+      keys     = [trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)]
+      password = "TT123456!"
+      username = "ubuntu"
+    }
+    # user_data_file_id = proxmox_virtual_environment_file.cloud_config.id
   }
 }
 
+# Worker node VM configuration
 resource "proxmox_virtual_environment_vm" "worker_node" {
-  name        = "microk8s-worker-node"
-  description = "MicroK8s Worker Node"
+  name        = "microk8s-worker-node-1"
+  description = "MicroK8s Worker Node 1"
   tags        = ["terraform", "microk8s", "worker"]
+  
+  depends_on = [proxmox_virtual_environment_vm.master_node]  # Explicit dependency
 
   node_name = "node2"
   vm_id     = 4322
+  
   agent {
-    enabled = false
+    enabled = true
   }
-  stop_on_destroy = true
 
   startup {
-    order      = "3"
+    order      = "2"  # Start after master
     up_delay   = "60"
     down_delay = "60"
   }
@@ -181,23 +232,7 @@ resource "proxmox_virtual_environment_vm" "worker_node" {
     datastore_id = "local-lvm"
     file_id      = proxmox_virtual_environment_download_file.latest_ubuntu_22_jammy_qcow2_img.id
     interface    = "scsi0"
-  }
-
-  initialization {
-    ip_config {
-      ipv4 {
-        address = "192.168.0.201/24"  # Static IP outside DHCP range
-        gateway = "192.168.0.1"       # Your router IP
-      }
-    }
-
-    user_account {
-      keys     = [trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)]
-      password = "TT123456!"
-      username = "ubuntu"
-    }
-
-    user_data_file_id = proxmox_virtual_environment_file.cloud_config_worker.id
+    size         = 32
   }
 
   network_device {
@@ -209,109 +244,20 @@ resource "proxmox_virtual_environment_vm" "worker_node" {
     type = "l26"
   }
 
-  serial_device {}
-
-}
-
-
-resource "proxmox_virtual_environment_file" "cloud_config_worker_2" {
-  content_type = "snippets"
-  datastore_id = "local"
-  node_name    = "node2"
-
-  source_raw {
-    data = <<-EOF
-    #cloud-config
-    chpasswd:
-      list: |
-        ubuntu:password
-      expire: false
-    hostname: worker_node_2
-    packages:
-      - qemu-guest-agent
-    users:
-      - default
-      - name: ubuntu
-        groups: sudo
-        shell: /bin/bash
-        ssh-authorized-keys:
-          - ${trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)}
-        sudo: ALL=(ALL) NOPASSWD:ALL
-    runcmd:
-      - echo "Hello, World!" > /tmp/hello.txt  
-      - sudo snap install microk8s --classic --channel=1.31
-      - sudo microk8s status --wait-ready
-      - JOIN_COMMAND=$(ssh ubuntu@192.168.0.200 'sudo microk8s add-node' | grep 'microk8s join')
-      - sudo $JOIN_COMMAND
-      - sudo microk8s kubectl get nodes
-    EOF
-
-    file_name = "cloud-config-worker-2.yaml"
-  }
-}
-
-resource "proxmox_virtual_environment_vm" "worker_node_2" {
-  name        = "microk8s-worker-node-2"
-  description = "MicroK8s Worker Node-2"
-  tags        = ["terraform", "microk8s", "worker"]
-
-  node_name = "node2"
-  vm_id     = 4324
-  agent {
-    enabled = false
-  }
-  stop_on_destroy = true
-
-  startup {
-    order      = "3"
-    up_delay   = "60"
-    down_delay = "60"
-  }
-
-  cpu {
-    cores = 2
-    type  = "x86-64-v2-AES"
-  }
-
-  memory {
-    dedicated = 2048
-    floating  = 2048
-  }
-
-  disk {
-    datastore_id = "local-lvm"
-    file_id      = proxmox_virtual_environment_download_file.latest_ubuntu_22_jammy_qcow2_img.id
-    interface    = "scsi0"
-  }
-
   initialization {
     ip_config {
       ipv4 {
-        address = "192.168.0.202/24"  # Static IP outside DHCP range
-        gateway = "192.168.0.1"       # Your router IP
+        address = "192.168.0.201/24"
+        gateway = "192.168.0.1"
       }
     }
-
     user_account {
       keys     = [trimspace(tls_private_key.ubuntu_vm_key.public_key_openssh)]
       password = "TT123456!"
       username = "ubuntu"
     }
-
-    user_data_file_id = proxmox_virtual_environment_file.cloud_config_worker_2.id
+    # user_data_file_id = proxmox_virtual_environment_file.cloud_config_worker.id
   }
-
-  network_device {
-    bridge = "vmbr0"
-    model  = "virtio"
-  }
-
-  operating_system {
-    type = "l26"
-  }
-
-  serial_device {}
-
 }
 
 resource "proxmox_virtual_environment_download_file" "latest_ubuntu_22_jammy_qcow2_img" {
