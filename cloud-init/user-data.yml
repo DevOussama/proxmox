@@ -1,0 +1,34 @@
+#cloud-config
+package_upgrade: true
+
+#cloud-config
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - openssh-server
+
+timezone: Europe/Oslo
+users:
+  - default
+  - name: ubuntu
+    passwd: "$6$w/erXX2fUZv/T2qU$.BJX6AV2K53x2WMzQdclRlipGfHbmH0n4lDUoRAL4kBcsp5pN9wXtslLxd/PyDViY2sGtX00w8vGZysff2kWV0"
+    groups: [adm, cdrom, dip, plugdev, lxd, sudo]
+    shell: /bin/bash
+    lock-passwd: false
+    ssh_pwauth: True
+    chpasswd: { expire: False }
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDPGGEn2DJJIYmHwEyNaytWGaBsXIHZtOTjev4GwMHMJOQ5xsVB20rs2rVjqoLujlOtqbR+GEvpWYI0LgqJ4UyUDmjgXVjXBGB0gsw/Rb/lbVf2/28MARozBAijF+G4D1wQ/tfphxnAKUEo11NWxpHj5ZFGtJ3VjDm44G+esJDntqwZl+EViOMd9fbflILhQd1JIioh/cLMxLrElnxD6DRXRDSHT7Xvib6zff5/imNO7TpDfPnItv5kgq1cU1BdkaZwFqRMKIHRfloxgPrplpfVm/3PRhfop9KQv9yA/mlfbC92xnErbu2ar9iiGnrOsmlSstiP32hFg3PFVXs+AFxQr6Fc7mvmoc0D00mnbgIOmKRLBYyDBPieKOqhkWQ29h+9QXP79w60kjnm/gv0ym9/uVAuns2TX0xmmmB4EIVwvrkoDd4bAODQ9pEo+OhLvVM4P/yb1uiXJ+UxxcHMZovgIHEEn3yDbPkSJ/DzzZI55haZQI7sHPCqtfCdk7yQ3lDmaCrZ2H6SP6LBlqJ/ap08EPoljJIMtKgfEVQUHZpiviAlUq8x2spgT7hcWCf50WgyTONiISNsf7uvDwT3qnU1QsyATqVGGF+lwyw1HASv/KhZwFFTBWkYPsKQXgVac+cuY+47a0Eg0oLB/ti8+HrRVpQ+expPmmMpLAgl0UHD8w== otanfous@gmail.com
+
+
+
+autoinstall:
+    version: 1
+    identity:
+        hostname: node2
+        username: ubuntu
+        password: "$6$kQ.CofFZ/37A4a.l$.eNHFza07BKIx8oqQurRvxBEMHtll8BYTEBL./iEp8wE2IQcd3PPq0DS50RNfuHChfftk7bU0DFfWZcPAdkBR0"
+    refresh-installer:
+        update: yes
