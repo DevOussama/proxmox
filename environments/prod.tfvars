@@ -1,7 +1,7 @@
 environment = "prod"
-proxmox_endpoint = "https://192.168.0.102:8006/api2/json"
+proxmox_endpoint = "https://192.168.0.101:8006/api2/json"
 proxmox_username = "root@pam"
-proxmox_node = "node2"
+proxmox_node = "node01"
 proxmox_password = "Ets240790"
 ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICCjGUt7IgX8HsmG4apLRAXhih05XDA7XE1OZ1hjfC1A otanfous@gmail.com"
 network_config = {

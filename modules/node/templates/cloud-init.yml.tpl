@@ -2,7 +2,7 @@
 hostname: ${hostname}
 
 # Configure password authentication
-ssh_pwauth: true
+
 chpasswd:
   list: |
     ubuntu:ubuntu123
@@ -22,8 +22,6 @@ users:
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
     ssh-authorized-keys:
       - ${ssh_public_key}
-    lock_passwd: false
-    passwd: "$6$rounds=4096$saltsalt$N8H5yV5Qg16hCXoU1Ynam0DFxQHphYi9ptQW0SzsvxQ8NH8oyCkL8nDxYNlA/GoVGlwPKFLJyqOLHiTGEVrwr1"  # Password: ubuntu123
 
 # Configure network
 write_files:
