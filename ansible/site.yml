@@ -1,0 +1,89 @@
+- name: Setup MicroK8s Cluster
+  hosts: microk8s_cluster
+  become: yes
+  tasks:
+    - name: Remove existing MicroK8s installation
+      snap:
+        name: microk8s
+        state: absent
+      ignore_errors: yes
+
+    - name: Install MicroK8s
+      snap:
+        name: microk8s
+        channel: "{{ microk8s_channel }}"
+        classic: yes
+        state: present
+
+    - name: Add ubuntu user to microk8s group
+      user:
+        name: ubuntu
+        groups: microk8s
+        append: yes
+
+    - name: Create .kube directory
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Wait for MicroK8s to be ready
+      command: microk8s status --wait-ready
+      changed_when: false
+      retries: 10
+      delay: 10
+      register: result
+      until: result.rc == 0
+
+- name: Configure Master Node
+  hosts: master
+  become: yes
+  tasks:
+    - name: Enable MicroK8s addons
+      command: microk8s enable dns dashboard
+      register: addon_result
+      changed_when: addon_result.rc == 0
+
+    - name: Generate kubeconfig
+      command: microk8s config
+      register: kubeconfig
+      changed_when: false
+
+    - name: Save kubeconfig
+      copy:
+        content: "{{ kubeconfig.stdout }}"
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Get join command
+      command: microk8s add-node --format short
+      register: join_command
+      changed_when: false
+
+    - name: Save join command for workers
+      set_fact:
+        join_command: "{{ join_command.stdout_lines[0] }}"
+
+- name: Join Worker Nodes
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Join worker to cluster
+      command: "{{ hostvars[groups['master'][0]]['join_command'] }}"
+      register: join_result
+      failed_when: 
+        - join_result.rc != 0 
+        - "'already joined' not in join_result.stderr"
+      changed_when: join_result.rc == 0
+
+    - name: Wait for node to be ready
+      command: microk8s kubectl get nodes
+      register: node_status
+      until: node_status.rc == 0
+      retries: 10
+      delay: 10
+      changed_when: false

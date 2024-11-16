@@ -1,0 +1,25 @@
+all:
+  children:
+    microk8s_cluster:
+      children:
+        master:
+          hosts:
+            master-node:
+              ansible_host: 192.168.0.200
+              ansible_user: ubuntu
+              ansible_ssh_private_key_file: 'C:/Users/otanf/.ssh/proxmox-server'
+        workers:
+          hosts:
+            worker-node:
+              ansible_host: 192.168.0.201
+              ansible_user: ubuntu
+              ansible_ssh_private_key_file: 'C:/Users/otanf/.ssh/proxmox-server'
+  vars:
+    ansible_become: yes
+    ansible_become_method: sudo
+    ansible_become_user: root
+    microk8s_channel: 1.31/stable
+    # Windows-specific SSH arguments
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    # Use native Windows OpenSSH if available
+    ansible_ssh_executable: 'C:/Windows/System32/OpenSSH/ssh.exe'
