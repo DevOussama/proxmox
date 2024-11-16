@@ -3,10 +3,6 @@ variable "environment" {
   type        = string
 }
 
-variable "proxmox_node" {
-  description = "Proxmox node name"
-  type        = string
-}
 
 variable "node_config" {
   description = "Configuration for the node"
@@ -18,6 +14,7 @@ variable "node_config" {
     cpu_cores = number
     memory = number
     disk_size = number
+    node_name = string
   })
 }
 
@@ -30,10 +27,10 @@ variable "network_config" {
   })
 }
 
-variable "cloud_image_file_id" {
-  description = "ID of the Ubuntu cloud image"
-  type        = string
-}
+# variable "cloud_image_file_id" {
+#   description = "ID of the Ubuntu cloud image"
+#   type        = string
+# }
 
 variable "ssh_public_key" {
   description = "SSH public key for VM access"

@@ -5,7 +5,7 @@ locals {
 resource "proxmox_virtual_environment_file" "cloud_config" {
   content_type = "snippets"
   datastore_id = "local"
-  node_name    = var.proxmox_node
+  node_name    = var.node_config.node_name
 
   source_raw {
     data = templatefile("${path.module}/templates/cloud-init.yml.tpl", {
@@ -18,6 +18,7 @@ resource "proxmox_virtual_environment_file" "cloud_config" {
     })
     file_name = "cloud-config-${var.node_config.name}.yaml"
   }
+  depends_on = [proxmox_virtual_environment_download_file.ubuntu_cloud_image]
 }
 
 resource "proxmox_virtual_environment_vm" "node" {
@@ -25,7 +26,7 @@ resource "proxmox_virtual_environment_vm" "node" {
   description = "MicroK8s ${title(var.node_config.role)} Node - ${var.environment}"
   tags        = ["terraform", "microk8s", var.node_config.role, var.environment]
 
-  node_name = var.proxmox_node
+  node_name = var.node_config.node_name
   vm_id     = var.node_config.vm_id
   
   agent {
@@ -50,7 +51,7 @@ resource "proxmox_virtual_environment_vm" "node" {
 
   disk {
     datastore_id = "local-lvm"
-    file_id      = var.cloud_image_file_id
+    file_id      = proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
     interface    = "scsi0"
     size         = var.node_config.disk_size
   }
@@ -74,4 +75,12 @@ resource "proxmox_virtual_environment_vm" "node" {
       }
     }
   }
+  depends_on = [proxmox_virtual_environment_download_file.ubuntu_cloud_image]
+}
+
+resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
+  content_type = "iso"
+  datastore_id = "local"
+  node_name    = var.node_config.node_name
+  url          = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 }

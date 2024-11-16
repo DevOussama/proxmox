@@ -1,7 +1,7 @@
 environment = "prod"
 proxmox_endpoint = "https://192.168.0.101:8006/api2/json"
 proxmox_username = "root@pam"
-proxmox_node = "node01"
+# proxmox_node = "node01"
 proxmox_password = "Ets240790"
 ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICCjGUt7IgX8HsmG4apLRAXhih05XDA7XE1OZ1hjfC1A otanfous@gmail.com"
 network_config = {
@@ -19,6 +19,7 @@ nodes = [
     cpu_cores = 2
     memory = 2048
     disk_size = 32
+    node_name = "node01"
   },
   {
     name = "worker-node-1"
@@ -28,5 +29,16 @@ nodes = [
     cpu_cores = 2
     memory = 2048
     disk_size = 32
+    node_name = "node01"
+  },
+  {
+    name = "master-node"
+    role = "master"
+    ip_address = "192.168.0.202"
+    vm_id = 4322
+    cpu_cores = 2
+    memory = 2048
+    disk_size = 32
+    node_name = "node03"
   }
 ]

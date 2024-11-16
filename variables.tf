@@ -19,10 +19,6 @@ variable "proxmox_password" {
   sensitive   = true
 }
 
-variable "proxmox_node" {
-  description = "Proxmox node name"
-  type        = string
-}
 
 variable "ssh_public_key" {
   description = "SSH public key for VM access"
@@ -48,5 +44,6 @@ variable "nodes" {
     cpu_cores = number
     memory = number
     disk_size = number
+    node_name = string
   }))
 }
